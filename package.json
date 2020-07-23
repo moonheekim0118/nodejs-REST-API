@@ -1,0 +1,25 @@
+{
+  "name": "nodejs-rest-api",
+  "version": "1.0.0",
+  "description": "node js REST API 실습",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moonheekim0118/nodejs-REST-API.git"
+  },
+  "author": "moonee kim",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/moonheekim0118/nodejs-REST-API/issues"
+  },
+  "homepage": "https://github.com/moonheekim0118/nodejs-REST-API#readme",
+  "dependencies": {
+    "body-parser": "^1.19.0",
+    "express": "^4.17.1",
+    "nodemon": "^2.0.4"
+  }
+}
