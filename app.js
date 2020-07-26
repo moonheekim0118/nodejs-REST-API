@@ -2,6 +2,7 @@ const path=require('path');
 const express = require('express');
 const bodyParser = require('body-parser');
 const feedRoutes = require('./routes/feed');
+const authRoutes = require('./routes/auth');
 const mongoose =require('mongoose');
 const URL =require('./database');
 const multer = require('multer');
@@ -39,7 +40,7 @@ app.use((req,res,next)=>{ // 다른 서버 (frontend) 로부터의 접근을 허
 });
 
 app.use('/feed',feedRoutes);
-
+app.use('/auth',authRoutes);
 app.use((error,req,res,next)=>{
     console.log(error);
     const status = error.statusCode || 500;
