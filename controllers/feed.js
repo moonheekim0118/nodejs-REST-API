@@ -4,34 +4,27 @@ const path = require('path');
 const Post = require('../models/post');
 const User = require('../models/user');
 const errorFuncs = require('./errorHandle');
+const io  = require('../socket');
 
-exports.getPosts=(req,res,next)=>{
+exports.getPosts= async (req,res,next)=>{
     const currentPage = req.query.page || 1;
     const perPage = 2;
-    let totalItems;
-    Post.find().countDocuments()
-    .then(count=>{
-        totalItems=count;
-        return Post.find()
-        .skip((currentPage-1)*perPage)
-        .limit(perPage)
-    })
-    .then(post=>{
-        if(!post){
-            errorFuncs.throwError('there is no posts');
-         }
-         res.status(200).json({posts:post, totalItems: totalItems});
-    })
-    .catch(err=> { 
+    try{
+    const totalItems= await Post.find().countDocuments()
+    const post = await Post.find()
+    .populate('name')
+    .skip((currentPage-1)*perPage)
+    .limit(perPage);
+    res.status(200).json({posts:post, totalItems: totalItems});
+    }catch(err){
         errorFuncs.errorHandling(err);
-        next(err);
-    });
+         next(err);
+    }
 }
 
-exports.createPost=(req,res,next)=>{
+exports.createPost= async (req,res,next)=>{
     const errors =validationResult(req);
     const userId= req.userId;
-    let savedUser;
     if(!errors.isEmpty()){
         errorFuncs.throwError('Validation failed');
        }
@@ -47,73 +40,61 @@ exports.createPost=(req,res,next)=>{
         content:content,
         creator: userId
     });
-    post.save().then(result=>{
-        return User.findById(userId)
+   try{
+    await post.save();
+    const user = await User.findById(userId);
+    user.posts.push(post);
+    await user.save();
+    io.getIO().emit('posts', { action: 'create', post: post});
+    res.status(201).json({
+        message:'post created successfully',
+        post: post,
+        creator:{_id: user._id, name:user.name }
     })
-    .then(user=>{
-        savedUser=user;
-        user.posts.push(post);
-        return user.save();
-    })
-    .then(result=>{
-        res.status(201).json({
-            message:'post created successfully',
-            post: post,
-            creator:{_id: savedUser._id, name:savedUser.name }
-        })
-    })
-    .catch(err=> { 
-        errorFuncs.errorHandling(err);
-        next(err);
-    });
+   }catch(err){
+       errorFuncs.errorHandling(err);
+       next(err);
+   }
 }
-
-exports.getPost=(req,res,next)=>{
+ 
+exports.getPost= async (req,res,next)=>{
     const postId= req.params.postId;
-    Post.findById(postId)
-    .then(post=>{
-        if(!post){
-            errorFuncs.throwError('there is no message');
-        }
-        res.status(200).json({post:post});
-    })
-    .catch(err=> { 
+    try{
+    const post = await Post.findById(postId);
+    if(!post){
+        errorFuncs.throwError('could not foind post.');
+    }
+    res.status(200).json({post:post});
+    }catch(err){  
         errorFuncs.errorHandling(err);
         next(err);
-    });
+    }
+
 }
 
-exports.deletePost=(req,res,next)=>{
+exports.deletePost=async (req,res,next)=>{
     const postId=req.params.postId;
-    Post.findById(postId)
-    .then(post=>{
-        if(!post){
-            errorFuncs.throwError('there is no post');
-        }
-        if(post.creator.toString() !== req.userId){
-            errorFuncs.throwError('not authorized');
-        }
-        User.findById(req.userId)
-       clearimage(post.imageUrl);
-       return Post.findByIdAndRemove(postId)
-    })
-    .then(result=>{
-        return User.findById(req.userId)
-    })
-    .then(user=>{
-        user.posts.pull(postId);
-        return user.save();
-    })
-    .then(result=>{
-        res.status(200).json({message:'succeed'});
-    })
-    .catch(err=> { 
-        errorFuncs.errorHandling(err);
-        next(err);
-    });
+    try{
+    const post = await Post.findById(postId)
+    if(!post){
+        errorFuncs.throwError('there is no post');
+    }
+    if(post.creator.toString() !== req.userId){
+         errorFuncs.throwError('not authorized');
+    }
+    clearimage(post.imageUrl);
+    await Post.findByIdAndRemove(postId)
+    const user = await User.findById(req.userId);
+    user.posts.pull(postId);
+    await user.save();
+    res.status(200).json({message:'succeed'});
+    }catch(err){
+    errorFuncs.errorHandling(err);
+    next(err);
+    }
 }
 
-exports.updatePost=(req,res,next)=>{
+exports.updatePost= async (req,res,next)=>{
     const errors =validationResult(req);
     if(!errors.isEmpty()){
         errorFuncs.throwError('Validation failed');
@@ -128,65 +109,58 @@ exports.updatePost=(req,res,next)=>{
     if(!imageUrl){
         errorFuncs.throwError('no file picked');
     }
-    Post.findById(postId).
-    then(post=>{
-        if(!post){
-            errorFuncs.throwError("there is no post");
-        }
-        if(post.creator.toString() !== req.userId){
-            errorFuncs.throwError('not authorized');
-        }
-        if(imageUrl!==post.imageUrl){
-            clearimage(post.imageUrl);
-        }
-        post.title=title;
-        post.content=content;
-        post.imageUrl=imageUrl;
-        return post.save();
-    })
-    .then(result=>{
-        res.status(200).json({message:'updated', post:result});
-    })
-    .catch(err=> { 
-        errorFuncs.errorHandling(err);
-        next(err);
-    });
+    try{
+    const post = await Post.findById(postId);
+    if(!post){
+        errorFuncs.throwError("there is no post");
+    }
+    if(post.creator.toString() !== req.userId){
+        errorFuncs.throwError('not authorized');
+    }
+    if(imageUrl!==post.imageUrl){
+        clearimage(post.imageUrl);
+    }
+    post.title=title;
+    post.content=content;
+    post.imageUrl=imageUrl;
+    const result= post.save();
+    res.status(200).json({message:'updated', post:result});
+}catch(err){
+    errorFuncs.errorHandling(err);
+    next(err);
+}
 }
 
-exports.getStatus=(req,res,next)=>{ // status 보여주기 
-    User.findById(req.userId)
-    .then(user=>{
-        if(!user){
-            errorFuncs.throwError('no user found');
-        }
-        console.log(user.status);
-        res.status(200).json({status:user.status});
-    })
-    .catch(err=> { 
+exports.getStatus= async (req,res,next)=>{ // status 보여주기 
+    try{
+    const user = await User.findById(req.userId);
+    if(!user){
+        errorFuncs.throwError('no user found');
+    }
+    console.log(user.status);
+    res.status(200).json({status:user.status});
+    }catch(err){
         errorFuncs.errorHandling(err);
         next(err);
-    });
+    }
 }
 
-exports.updateStatus=(req,res,next)=>{
+exports.updateStatus= async (req,res,next)=>{
     const errors =validationResult(req);
+    try{
     if(!errors.isEmpty()){
         errorFuncs.throwError('fail');
     }
     const newStatus= req.body.status;
-    User.findById(req.userId)
-    .then(user=>{
-        console.log(newStatus);
-        user.status=newStatus;
-        return user.save();
-    })
-    .then(result=>{
-        res.status(200).json({message:'succeed'}); 
-    })
-    .catch(err=> { 
+    const user = await User.findById(req.userId)
+    user.status=newStatus;
+    await user.save();
+    res.status(200).json({message:'succeed'}); 
+    }catch(err){
         errorFuncs.errorHandling(err);
         next(err);
-    });
+    }
+    
 }
 
 const clearimage = filePath =>{

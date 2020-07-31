@@ -7,7 +7,6 @@ const mongoose =require('mongoose');
 const URL =require('./database');
 const multer = require('multer');
 const { uuid } = require('uuidv4');
-
 const app = express();
 
 const fileStorage =  multer.diskStorage({
@@ -51,6 +50,10 @@ app.use((error,req,res,next)=>{
 
 mongoose.connect(URL.dbUrl)
 .then(result=>{
-    app.listen(8080);
+    const server = app.listen(8080);
+    const io =require('./socket').init(server);
+    io.on('connect', Socket=>{
+        console.log('client connected');
+    })
 })
 .catch(err=>console.log(err));
